@@ -39,3 +39,8 @@ if debug.is_debugging_enabled():
             return await super().handle(*args, **kwargs)
 
     application = DebuggerApp()
+
+
+from cvat.apps.test.live import route_websockets  # noqa: E402 (needs the apps set up above)
+
+application = route_websockets(application)
