@@ -2,14 +2,21 @@
 #
 # SPDX-License-Identifier: MIT
 
-from collections import Counter
+from collections import Counter, defaultdict
 
-from django.db.models import Count
+from django.db.models import Count, F, Value
 
 from cvat.apps.engine.models import JobType, LabeledImage, LabeledShape, LabeledTrack, Task
 
+# Tracks and tags have no shape type of their own, so they are reported as a separate kind
+_ANNOTATION_KINDS = (
+    (LabeledShape, F("type")),
+    (LabeledTrack, Value("track")),
+    (LabeledImage, Value("tag")),
+)
 
-def count_annotations_per_label(task: Task) -> list[dict]:
+
+def count_annotations_per_label(task: Task, *, group_by_type: bool = False) -> list[dict]:
     """
     Count top-level annotations (shapes, tracks and tags) per label for a task.
 
@@ -19,17 +26,29 @@ def count_annotations_per_label(task: Task) -> list[dict]:
     """
 
     counts = Counter()
-    for model in (LabeledShape, LabeledTrack, LabeledImage):
+    counts_by_type = defaultdict(Counter)
+    for model, kind in _ANNOTATION_KINDS:
         queryset = model.objects.filter(
             job__segment__task_id=task.id, job__type=JobType.ANNOTATION
         )
         if model is not LabeledImage:
             queryset = queryset.filter(parent__isnull=True)
 
-        for row in queryset.values("label_id").annotate(count=Count("id")).order_by():
-            counts[row["label_id"]] += row["count"]
+        if group_by_type:
+            rows = queryset.annotate(kind=kind).values("label_id", "kind")
+        else:
+            rows = queryset.values("label_id")
 
-    return [
-        {"id": label.id, "name": label.name, "color": label.color, "count": counts[label.id]}
-        for label in task.get_labels().order_by("id")
-    ]
+        for row in rows.annotate(count=Count("id")).order_by():
+            counts[row["label_id"]] += row["count"]
+            if group_by_type:
+                counts_by_type[row["label_id"]][row["kind"]] += row["count"]
+
+    labels = []
+    for label in task.get_labels().order_by("id"):
+        entry = {"id": label.id, "name": label.name, "color": label.color, "count": counts[label.id]}
+        if group_by_type:
+            entry["by_type"] = dict(counts_by_type[label.id])
+        labels.append(entry)
+
+    return labels

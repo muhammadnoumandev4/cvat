@@ -12,8 +12,10 @@ import Text from 'antd/lib/typography/Text';
 import Button from 'antd/lib/button';
 import Empty from 'antd/lib/empty';
 import Result from 'antd/lib/result';
+import Switch from 'antd/lib/switch';
+import Space from 'antd/lib/space';
 import {
-    Chart as ChartJS, BarElement, CategoryScale, LinearScale, Tooltip,
+    Chart as ChartJS, BarElement, CategoryScale, LinearScale, Legend, Tooltip,
 } from 'chart.js';
 import { Bar } from 'react-chartjs-2';
 
@@ -21,50 +23,70 @@ import { getCore } from 'cvat-core-wrapper';
 import CVATLoadingSpinner from 'components/common/loading-spinner';
 import GoBackButton from 'components/common/go-back-button';
 
-ChartJS.register(BarElement, CategoryScale, LinearScale, Tooltip);
+ChartJS.register(BarElement, CategoryScale, LinearScale, Legend, Tooltip);
 
 const core = getCore();
 const FALLBACK_COLOR = '#1890ff';
+const KIND_COLORS: Record<string, string> = {
+    rectangle: '#1890ff',
+    polygon: '#52c41a',
+    mask: '#fa8c16',
+    polyline: '#722ed1',
+    points: '#eb2f96',
+    ellipse: '#13c2c2',
+    cuboid: '#a0d911',
+    skeleton: '#2f54eb',
+    track: '#faad14',
+    tag: '#8c8c8c',
+};
 
 interface LabelCount {
     id: number;
     name: string;
     color: string;
     count: number;
+    by_type?: Record<string, number>;
 }
 
 interface AnnotationCounts {
     task_id: number;
     total: number;
+    group_by: 'type' | null;
     labels: LabelCount[];
 }
 
-async function fetchAnnotationCounts(taskId: number): Promise<AnnotationCounts> {
+async function fetchAnnotationCounts(taskId: number, groupByType: boolean): Promise<AnnotationCounts> {
     const response = await core.server.request(
         `${core.config.backendAPI}/test/tasks/${taskId}/annotation-counts`,
-        { method: 'GET' },
+        { method: 'GET', params: groupByType ? { group_by: 'type' } : {} },
     );
     return response.data;
 }
 
-function AnnotationCountsChart({ labels }: { labels: LabelCount[] }): JSX.Element {
-    const sorted = [...labels].sort((a, b) => b.count - a.count);
+function AnnotationCountsChart({ counts }: { counts: AnnotationCounts }): JSX.Element {
+    const sorted = [...counts.labels].sort((a, b) => b.count - a.count);
+    const grouped = counts.group_by === 'type';
+    const kinds = [...new Set(sorted.flatMap((label) => Object.keys(label.by_type ?? {})))];
+    const datasets = grouped ? kinds.map((kind) => ({
+        label: kind,
+        data: sorted.map((label) => label.by_type?.[kind] ?? 0),
+        backgroundColor: KIND_COLORS[kind] ?? FALLBACK_COLOR,
+    })) : [{
+        label: 'Annotations',
+        data: sorted.map((label) => label.count),
+        backgroundColor: sorted.map((label) => label.color || FALLBACK_COLOR),
+    }];
+
     return (
         <Bar
             options={{
                 indexAxis: 'y',
                 maintainAspectRatio: false,
                 animation: false,
-                plugins: { tooltip: { enabled: true } },
+                scales: { x: { stacked: grouped }, y: { stacked: grouped } },
+                plugins: { legend: { display: grouped } },
             }}
-            data={{
-                labels: sorted.map((label) => label.name),
-                datasets: [{
-                    label: 'Annotations',
-                    data: sorted.map((label) => label.count),
-                    backgroundColor: sorted.map((label) => label.color || FALLBACK_COLOR),
-                }],
-            }}
+            data={{ labels: sorted.map((label) => label.name), datasets }}
         />
     );
 }
@@ -75,15 +97,16 @@ function AnnotationStatsPage(): JSX.Element {
     const [counts, setCounts] = useState<AnnotationCounts | null>(null);
     const [error, setError] = useState<Error | null>(null);
     const [fetching, setFetching] = useState(true);
+    const [groupByType, setGroupByType] = useState(false);
 
     const load = useCallback(() => {
         setFetching(true);
         setError(null);
-        fetchAnnotationCounts(taskId)
+        fetchAnnotationCounts(taskId, groupByType)
             .then(setCounts)
             .catch(setError)
             .finally(() => setFetching(false));
-    }, [taskId]);
+    }, [taskId, groupByType]);
 
     useEffect(load, [load]);
 
@@ -107,7 +130,7 @@ function AnnotationStatsPage(): JSX.Element {
                 className='cvat-annotation-stats-chart'
                 style={{ height: Math.max(300, counts.labels.length * 22) }}
             >
-                <AnnotationCountsChart labels={counts.labels} />
+                <AnnotationCountsChart counts={counts} />
             </div>
         );
     }
@@ -118,11 +141,17 @@ function AnnotationStatsPage(): JSX.Element {
                 <Col span={22} xl={18} xxl={14}>
                     <GoBackButton />
                     <Title level={4}>{`Annotations per label, task #${taskId}`}</Title>
-                    {counts && counts.total > 0 && (
-                        <Text type='secondary'>
-                            {`${counts.total} annotations across ${counts.labels.length} labels`}
-                        </Text>
-                    )}
+                    <Space size='large'>
+                        {counts && counts.total > 0 && (
+                            <Text type='secondary'>
+                                {`${counts.total} annotations across ${counts.labels.length} labels`}
+                            </Text>
+                        )}
+                        <Space>
+                            <Switch checked={groupByType} onChange={setGroupByType} />
+                            <Text>Split by shape type</Text>
+                        </Space>
+                    </Space>
                     {content}
                 </Col>
             </Row>
