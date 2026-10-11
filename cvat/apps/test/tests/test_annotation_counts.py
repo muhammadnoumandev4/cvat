@@ -16,6 +16,7 @@ from cvat.apps.engine.models import (
     JobType,
     Label,
     LabeledImage,
+    LabeledInterval,
     LabeledShape,
     LabeledTrack,
     LabelType,
@@ -72,6 +73,16 @@ class CountAnnotationsTest(_TaskFixture, TestCase):
 
         self.assertEqual(counts["car"]["count"], 3)  # a track with 2 keyframes is one object
         self.assertEqual(counts["person"]["count"], 1)
+
+    def test_intervals_are_counted_and_grouped_by_start(self):
+        LabeledInterval.objects.create(job=self.job, label=self.car, start=0, stop=4)
+        for _ in range(2):  # two parts of one grouped interval
+            LabeledInterval.objects.create(job=self.job, label=self.car, start=5, stop=9, group=3)
+
+        car = self.counts(group_by_type=True)["car"]
+
+        self.assertEqual(car["count"], 2)
+        self.assertEqual(car["by_type"], {"interval": 2})
 
     def test_labels_without_annotations_are_listed_with_zero(self):
         self.assertEqual(
