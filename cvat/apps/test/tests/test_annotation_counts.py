@@ -206,12 +206,14 @@ class LiveAnnotationCountsTest(_TaskFixture, TransactionTestCase):
         self.outsider = User.objects.create_user(username="outsider")
         self.make_task(self.owner)
 
-    async def open_socket(self, user: User, origin=b"http://testserver", task_id=None):
+    async def open_socket(
+        self, user: User, *, scheme="ws", origin=b"http://testserver", task_id=None
+    ):
         await self.async_client.aforce_login(user)
         cookie = f"sessionid={self.async_client.cookies['sessionid'].value}".encode()
         scope = {
             "type": "websocket",
-            "scheme": "ws",
+            "scheme": scheme,
             "path": f"/api/test/tasks/{task_id or self.task.id}/annotation-counts/ws",
             "raw_path": b"",
             "query_string": b"",
@@ -246,7 +248,22 @@ class LiveAnnotationCountsTest(_TaskFixture, TransactionTestCase):
         socket = await self.open_socket(self.outsider)
         self.assertEqual((await socket.receive_output(5))["type"], "websocket.accept")
         self.assertEqual(await socket.receive_output(5), {"type": "websocket.close", "code": 4403})
+        await socket.wait(5)
 
     async def test_cross_site_origin_is_rejected_before_accept(self):
         socket = await self.open_socket(self.owner, origin=b"http://evil.example")
         self.assertEqual(await socket.receive_output(5), {"type": "websocket.close", "code": 4403})
+        await socket.wait(5)
+
+    async def test_origin_with_other_scheme_is_rejected(self):
+        # Same host, but a plain-http page must not open the socket of an https server
+        socket = await self.open_socket(self.owner, scheme="wss", origin=b"http://testserver")
+        self.assertEqual(await socket.receive_output(5), {"type": "websocket.close", "code": 4403})
+        await socket.wait(5)
+
+    async def test_secure_origin_is_accepted_on_secure_socket(self):
+        socket = await self.open_socket(self.owner, scheme="wss", origin=b"https://testserver")
+        self.assertEqual((await socket.receive_output(5))["type"], "websocket.accept")
+
+        await socket.send_input({"type": "websocket.disconnect", "code": 1000})
+        await socket.wait(5)

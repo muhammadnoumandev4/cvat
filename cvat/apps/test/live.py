@@ -16,10 +16,13 @@ call. When the HTTP call is refused, the socket closes with 4000 + the HTTP stat
 """
 
 import asyncio
+import io
 import re
-from urllib.parse import urlsplit
 
 from asgiref.sync import sync_to_async
+from django.conf import settings
+from django.core.exceptions import DisallowedHost
+from django.core.handlers.asgi import ASGIRequest
 
 from cvat.apps.engine.models import Task
 
@@ -47,14 +50,9 @@ def _header(scope, name: bytes) -> str:
     return next((v.decode("latin-1") for k, v in scope["headers"] if k == name), "")
 
 
-def _is_same_origin(scope) -> bool:
-    # Browsers attach session cookies to cross-site WebSocket handshakes, and CSRF
-    # protection does not cover them, so the origin is checked here
-    return urlsplit(_header(scope, b"origin")).netloc == _header(scope, b"host")
-
-
-async def _fetch_counts(django_app, scope, task_id: int) -> tuple[int, str]:
-    http_scope = {
+def _counts_request_scope(scope, task_id: int) -> dict:
+    "The HTTP request for the counts endpoint, made with the socket's headers and cookies."
+    return {
         **scope,
         "type": "http",
         "method": "GET",
@@ -64,6 +62,26 @@ async def _fetch_counts(django_app, scope, task_id: int) -> tuple[int, str]:
         # Browsers offer gzip in the handshake; the body is sent as a text frame, not HTTP
         "headers": [(k, v) for k, v in scope["headers"] if k != b"accept-encoding"],
     }
+
+
+def _is_same_origin(http_scope) -> bool:
+    """
+    Browsers attach session cookies to cross-site WebSocket handshakes and CSRF protection
+    does not cover them, so the Origin is checked here with the rule Django's CSRF check
+    applies to HTTP: scheme and host of this server (honouring SECURE_PROXY_SSL_HEADER,
+    USE_X_FORWARDED_HOST and ALLOWED_HOSTS), or one of CSRF_TRUSTED_ORIGINS.
+    """
+    request = ASGIRequest(http_scope, io.BytesIO())
+    try:
+        own_origin = f"{request.scheme}://{request.get_host()}"
+    except DisallowedHost:
+        return False
+
+    origin = _header(http_scope, b"origin")
+    return origin == own_origin or origin in settings.CSRF_TRUSTED_ORIGINS
+
+
+async def _fetch_counts(django_app, http_scope) -> tuple[int, str]:
     status = 500
     body = []
     request_sent = False
@@ -96,7 +114,8 @@ def _get_task_version(task_id: int):
 
 async def _serve_counts(django_app, scope, receive, send, task_id: int):
     await receive()  # websocket.connect
-    if not _is_same_origin(scope):
+    http_scope = _counts_request_scope(scope, task_id)
+    if not _is_same_origin(http_scope):
         return await send({"type": "websocket.close", "code": 4403})
 
     await send({"type": "websocket.accept"})
@@ -115,7 +134,7 @@ async def _serve_counts(django_app, scope, receive, send, task_id: int):
             new_version = await _get_task_version(task_id)
             if version is None or new_version != version:
                 version = new_version
-                status, body = await _fetch_counts(django_app, scope, task_id)
+                status, body = await _fetch_counts(django_app, http_scope)
                 if status != 200:
                     return await send({"type": "websocket.close", "code": 4000 + status})
                 await send({"type": "websocket.send", "text": body})
