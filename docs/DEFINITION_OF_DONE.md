@@ -163,8 +163,8 @@ API total: 5
 - [x] Commits are small and readable. Plan and this file are committed before any code.
       → First commit `f21daee` holds only these two documents. Each fix found in testing
       is its own commit, saying what broke and why.
-- [x] No dead code, commented-out blocks or stray files. → 673 added lines, 0 removed, outside
-      `docs/`: `cvat/apps/test/`; one line in `cvat/settings/base.py`; one `include` in
+- [x] No dead code, commented-out blocks or stray files. → 674 added lines of feature code and
+      244 of tests, 0 removed, outside `docs/`: `cvat/apps/test/`; one line in `cvat/settings/base.py`; one `include` in
       `cvat/urls.py`; two lines in `cvat/asgi.py`; the page folder, one route and one menu
       item in the UI.
 - [x] Everything I did not finish is listed below.
