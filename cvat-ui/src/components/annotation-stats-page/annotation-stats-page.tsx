@@ -59,7 +59,7 @@ async function fetchAnnotationCounts(taskId: number, groupByType: boolean): Prom
     const response = await core.server.request(
         `${core.config.backendAPI}/test/tasks/${taskId}/annotation-counts`,
         { method: 'GET', params: groupByType ? { group_by: 'type' } : {} },
-    );
+    ) as { data: AnnotationCounts };
     return response.data;
 }
 
