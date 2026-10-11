@@ -21,6 +21,8 @@ class TaskAnnotationCountsViewSet(viewsets.GenericViewSet):
     queryset = Task.objects.select_related("project", "organization", "data__validation_layout")
     iam_permission_class = AnnotationCountsPermission
     iam_supports_organization_params = False
+    # Detail-only endpoint: there is no list to search, sort or filter
+    filter_backends = []
 
     @extend_schema(
         summary="Get the number of annotations per label in a task",

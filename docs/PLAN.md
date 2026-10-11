@@ -64,3 +64,12 @@ small.
   task"). Counts reveal what is annotated, so I used the `view:annotations` scope instead,
   the same rule as `GET /api/tasks/<id>/annotations`. I wired it in as the view's
   `iam_permission_class` so CVAT's `PolicyEnforcer` runs it, like the consensus app does.
+- **Objects, not rows.** First run on the COCO task returned 3,953 against COCO's 3,541. CVAT's
+  COCO importer stores each part of a multi-polygon segmentation as its own polygon with a
+  shared `group` id, so I was counting parts. The 3,953 matches the number of polygon parts
+  in the json exactly. Rows sharing `(job, frame, group)` are now counted once, which gives
+  3,541 with no per-class differences. Cost: objects a user grouped by hand in CVAT's UI
+  with the same label on the same frame now count as one.
+- **Filter backends.** CVAT's default filter backends assume a list view with
+  `search_fields`, and they crashed this detail-only view (500). The view now sets
+  `filter_backends = []`.
