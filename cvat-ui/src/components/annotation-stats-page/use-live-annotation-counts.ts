@@ -46,9 +46,16 @@ export function useLiveAnnotationCounts(
             socket = new WebSocket(url);
 
             socket.onmessage = (event: MessageEvent<string>) => {
+                let data: unknown;
+                try {
+                    data = JSON.parse(event.data);
+                } catch {
+                    return; // not counts; the next push replaces it
+                }
+
                 failedAttempts = 0;
                 setStatus({ state: 'live', retryInSeconds: null });
-                onCountsRef.current(JSON.parse(event.data));
+                onCountsRef.current(data);
             };
 
             socket.onclose = (event: CloseEvent) => {
