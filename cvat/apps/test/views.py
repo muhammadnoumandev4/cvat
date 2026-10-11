@@ -18,7 +18,7 @@ from .serializers import AnnotationCountsSerializer
 
 @extend_schema(tags=["test"])
 class TaskAnnotationCountsViewSet(viewsets.GenericViewSet):
-    queryset = Task.objects.select_related("project", "organization")
+    queryset = Task.objects.select_related("project", "organization", "data__validation_layout")
     iam_permission_class = AnnotationCountsPermission
     iam_supports_organization_params = False
 

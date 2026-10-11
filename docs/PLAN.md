@@ -13,8 +13,8 @@ COCO import run in the background and are not counted.
 - Tracks (`LabeledTrack`) and tags (`LabeledImage`) are separate tables. COCO import only
   creates shapes, but tracks and tags are still annotations, so I count them too.
 - Skeleton and child shapes have `parent` set. I count only top-level objects.
-- Ground-truth and consensus jobs hold copies of annotations. Only `JobType.ANNOTATION` jobs
-  are counted, otherwise one box could be counted twice.
+- Ground-truth and consensus jobs can hold copies of annotations. Jobs are chosen the way
+  CVAT's own `TaskAnnotation` does (see Changes below).
 - Access: DRF already refuses anonymous requests (`IsAuthenticated` is the default
   permission class in `cvat/settings/base.py`). Task access goes through OPA via
   `TaskPermission.create_scope_view(request, task).check_access()`, the same check CVAT
@@ -54,4 +54,9 @@ small.
 
 ## Changes during the work
 
-_(Filled in as the plan changes, with the reason.)_
+- **Ground truth jobs.** I first counted only `JobType.ANNOTATION` jobs. A review pointed out
+  that in a task with a GT pool (honeypots) the pool annotations live only in the ground
+  truth job, so they were missing. I now use the same rule as CVAT's own task annotations
+  (`TaskAnnotation`, `cvat/apps/dataset_manager/task.py:1033`): annotation jobs, plus the
+  ground truth job only in `gt_pool` mode. In plain `gt` mode CVAT itself leaves ground
+  truth out of the task's annotations, and so do I. Consensus replicas are never counted.
