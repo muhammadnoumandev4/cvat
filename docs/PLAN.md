@@ -81,3 +81,7 @@ small.
   to an existing grouped polygon: the plain total, the split total and the per-label sums
   all stayed at 3,541. The plain count path, the one measured in MO-1 and MO-2, did not
   change.
+- **Error state crash.** Testing the error state with `cvat_server` stopped crashed the whole
+  app. Traefik then sends `/api` to the UI container, which answers 200 with `index.html`.
+  The page trusted any 2xx and read `labels.length` on a string. The page now checks the
+  response shape. Lesson: "the request failed" does not always arrive as an HTTP error.

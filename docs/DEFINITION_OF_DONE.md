@@ -14,9 +14,19 @@ Written before any code. Each line is ticked only with evidence beside it.
       for the same images. → API total 3,541, COCO total 3,541, **0 mismatches across 80
       classes**. The first run gave 3,953 (polygon parts, not objects); see Plan → Changes.
       `group_by=type`: 3,504 polygons + 37 masks = 3,541; COCO has 37 crowd (RLE) objects.
-- [ ] Page renders the counts as a bar chart.
-- [ ] Empty task (no annotations) shows an empty state, not a blank chart.
-- [ ] Failed request (server down or 500) shows an error with a retry button.
+- [x] Page renders the counts as a bar chart. → Reached from the task's Actions menu
+      ([1](evidence/1-task-actions-menu.jpg)). 80 bars sorted by count in label colours,
+      "3541 annotations across 80 labels" ([2](evidence/2-chart.jpg)). The split toggle
+      draws stacked mask/polygon bars ([3](evidence/3-split-by-type.jpg)).
+- [x] Empty task (no annotations) shows an empty state, not a blank chart. → Task 3, one
+      image, two labels, API `total: 0`: "This task has no annotations yet"
+      ([4](evidence/4-empty-task.jpg)).
+- [x] Failed request (server down or 500) shows an error with a retry button. → Task
+      99999 gives a 404 with the server's message and Retry ([5](evidence/5-error-404.jpg)).
+      With the page open I stopped `cvat_server` and toggled the switch: error with Retry
+      ([6](evidence/6-error-server-down.jpg)). I started the server and clicked Retry: the
+      chart came back. The first attempt crashed the whole app
+      ([0](evidence/0-crash-before-fix.jpg)); see Plan → Changes.
 
 ## Access (item 5)
 
