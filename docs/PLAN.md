@@ -89,6 +89,11 @@ small.
   passed. In the browser every socket closed with 1006: the handshake offers gzip, Django's
   GZip middleware compressed the replayed response, and decoding it failed. The handler now
   drops `Accept-Encoding` from the replayed request.
+- **After review.** Two outside audits read an earlier snapshot. Fixed from them: a socket
+  message that is not JSON is now skipped instead of throwing. Retry, the browser coming
+  back online, and the tab becoming visible now reconnect the socket at once instead of
+  waiting out a backoff of up to 30 s. The spinner shows while any request is loading,
+  instead of a stale chart under a switch that had already changed.
 
 ## How the time went
 

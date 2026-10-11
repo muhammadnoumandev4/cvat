@@ -158,6 +158,15 @@ API total: 5
   body     count=1 by_type={'skeleton': 1}
 ```
 
+- [x] Retry rechecked on a stable server, after review. → I stopped `cvat_server` with the
+      page open and toggled the split. Traefik still routed to the stopped container, so the
+      request hung until a 504: "Could not load annotation counts / Gateway Timeout". I
+      started the server and waited for 5 good responses in a row, then clicked Retry at
+      03:05:54, with the socket in a 30 s backoff. By 03:06:01 the chart was back at 3,541
+      and the badge said Live ([11](evidence/11-retry-recovers-chart-and-socket.jpg)). A
+      server outage has now shown up three ways: HTML with a 200, a 502, and a 504. All
+      three end in the error state.
+
 ## Hygiene
 
 - [x] Commits are small and readable. Plan and this file are committed before any code.
@@ -175,8 +184,9 @@ API total: 5
   checked by hand with screenshots; there are no Jest or Cypress tests for it.
 - **No covering index.** MO-2 met its target with almost no margin. The next step is
   written in `docs/OBJECTIVES.md` but not done.
-- **Recovery can take up to 30 s** after a long outage, because of the backoff cap. There is
-  no "reconnect now" button, and the page does not listen for the browser's `online` event.
+- **Only one socket kind is routed.** `route_websockets` closes any other WebSocket path.
+  Stock CVAT has no other WebSocket routes today. A future one would need adding to that
+  router, because Django's ASGI handler does not accept WebSockets.
 - **Prebuilt images, not rebuilt.** I ran the `cvat/server:dev` and `cvat/ui:dev` images
   with this branch's `cvat/` package and UI bundle bind-mounted, through a local compose
   override kept outside the repo. I chose not to rebuild them. The UI image runs the same
