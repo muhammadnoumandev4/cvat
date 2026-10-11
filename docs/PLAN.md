@@ -17,8 +17,8 @@ COCO import run in the background and are not counted.
   CVAT's own `TaskAnnotation` does (see Changes below).
 - Access: DRF already refuses anonymous requests (`IsAuthenticated` is the default
   permission class in `cvat/settings/base.py`). Task access goes through OPA via
-  `TaskPermission.create_scope_view(request, task).check_access()`, the same check CVAT
-  uses elsewhere for "can this user see this task".
+  `TaskPermission`, the same rules CVAT uses for its own task endpoints (see Changes below
+  for which scope).
 - The server already runs under uvicorn/ASGI (`cvat/asgi.py`), so a WebSocket route can be
   added there without new dependencies.
 - The UI already ships `chart.js` + `react-chartjs-2` and antd.
@@ -60,3 +60,7 @@ small.
   (`TaskAnnotation`, `cvat/apps/dataset_manager/task.py:1033`): annotation jobs, plus the
   ground truth job only in `gt_pool` mode. In plain `gt` mode CVAT itself leaves ground
   truth out of the task's annotations, and so do I. Consensus replicas are never counted.
+- **Permission scope.** I planned to reuse `TaskPermission.create_scope_view` ("can see the
+  task"). Counts reveal what is annotated, so I used the `view:annotations` scope instead,
+  the same rule as `GET /api/tasks/<id>/annotations`. I wired it in as the view's
+  `iam_permission_class` so CVAT's `PolicyEnforcer` runs it, like the consensus app does.
