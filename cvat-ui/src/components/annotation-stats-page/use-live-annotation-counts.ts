@@ -2,13 +2,21 @@
 //
 // SPDX-License-Identifier: MIT
 
-import { useEffect, useRef, useState } from 'react';
+import {
+    useCallback, useEffect, useRef, useState,
+} from 'react';
 
 export type LiveState = 'connecting' | 'live' | 'reconnecting' | 'refused';
 
 export interface LiveStatus {
     state: LiveState;
     retryInSeconds: number | null;
+}
+
+export interface LiveConnection {
+    status: LiveStatus;
+    // Skips the remaining backoff wait, e.g. when the user retries or the browser is back online
+    reconnectNow: () => void;
 }
 
 const MAX_RETRY_DELAY_MS = 30000;
@@ -23,10 +31,11 @@ export function useLiveAnnotationCounts(
     taskId: number,
     groupByType: boolean,
     onCounts: (data: unknown) => void,
-): LiveStatus {
+): LiveConnection {
     const [status, setStatus] = useState<LiveStatus>({ state: 'connecting', retryInSeconds: null });
     const onCountsRef = useRef(onCounts);
     onCountsRef.current = onCounts;
+    const reconnectNowRef = useRef<() => void>(() => {});
 
     useEffect(() => {
         let socket: WebSocket | null = null;
@@ -73,14 +82,39 @@ export function useLiveAnnotationCounts(
                 const delay = Math.min(1000 * 2 ** failedAttempts, MAX_RETRY_DELAY_MS);
                 failedAttempts += 1;
                 setStatus({ state: 'reconnecting', retryInSeconds: Math.round(delay / 1000) });
-                retryTimer = window.setTimeout(connect, delay);
+                retryTimer = window.setTimeout(() => {
+                    retryTimer = null;
+                    connect();
+                }, delay);
             };
         }
 
+        // Only acts while waiting out a backoff; an open or opening socket is left alone
+        function reconnectNow(): void {
+            if (retryTimer === null) {
+                return;
+            }
+            window.clearTimeout(retryTimer);
+            retryTimer = null;
+            failedAttempts = 0;
+            connect();
+        }
+
+        function reconnectWhenVisible(): void {
+            if (document.visibilityState === 'visible') {
+                reconnectNow();
+            }
+        }
+
+        reconnectNowRef.current = reconnectNow;
+        window.addEventListener('online', reconnectNow);
+        document.addEventListener('visibilitychange', reconnectWhenVisible);
         connect();
 
         return () => {
             stopped = true;
+            window.removeEventListener('online', reconnectNow);
+            document.removeEventListener('visibilitychange', reconnectWhenVisible);
             if (retryTimer !== null) {
                 window.clearTimeout(retryTimer);
             }
@@ -88,5 +122,6 @@ export function useLiveAnnotationCounts(
         };
     }, [taskId, groupByType]);
 
-    return status;
+    const reconnectNow = useCallback(() => reconnectNowRef.current(), []);
+    return { status, reconnectNow };
 }

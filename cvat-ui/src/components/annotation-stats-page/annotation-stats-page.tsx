@@ -142,7 +142,11 @@ function AnnotationStatsPage(): JSX.Element {
             // A malformed push is ignored; the next one or a reload brings correct counts
         }
     }, []);
-    const liveStatus = useLiveAnnotationCounts(taskId, groupByType, onLiveCounts);
+    const { status: liveStatus, reconnectNow } = useLiveAnnotationCounts(taskId, groupByType, onLiveCounts);
+    const retry = useCallback(() => {
+        load();
+        reconnectNow();
+    }, [load, reconnectNow]);
 
     let content: JSX.Element;
     if (fetching && !counts) {
@@ -153,7 +157,7 @@ function AnnotationStatsPage(): JSX.Element {
                 status='error'
                 title='Could not load annotation counts'
                 subTitle={error.message}
-                extra={<Button type='primary' onClick={load}>Retry</Button>}
+                extra={<Button type='primary' onClick={retry}>Retry</Button>}
             />
         );
     } else if (!counts || counts.total === 0) {
