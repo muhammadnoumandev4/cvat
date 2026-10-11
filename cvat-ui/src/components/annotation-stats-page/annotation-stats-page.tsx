@@ -107,7 +107,7 @@ function AnnotationCountsChart({ counts }: { counts: AnnotationCounts }): JSX.El
                 indexAxis: 'y',
                 maintainAspectRatio: false,
                 animation: false,
-                scales: { x: { stacked: grouped }, y: { stacked: grouped } },
+                scales: { x: { stacked: grouped, ticks: { precision: 0 } }, y: { stacked: grouped } },
                 plugins: { legend: { display: grouped } },
             }}
             data={{ labels: sorted.map((label) => label.name), datasets }}
