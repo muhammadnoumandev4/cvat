@@ -81,6 +81,7 @@ import EmailVerificationSentPage from './email-confirmation-pages/email-verifica
 import IncorrectEmailConfirmationPage from './email-confirmation-pages/incorrect-email-confirmation';
 import CreateJobPage from './create-job-page/create-job-page';
 import QualityControlPage from './quality-control/quality-control-page';
+import AnnotationStatsPage from './annotation-stats-page/annotation-stats-page';
 import AnalyticsReportPage from './analytics-report/analytics-report-page';
 import ConsensusManagementPage from './consensus-management-page/consensus-management-page';
 import InvitationWatcher from './invitation-watcher/invitation-watcher';
@@ -568,6 +569,7 @@ class CVATApplication extends React.PureComponent<CVATAppProps & RouteComponentP
                                         <Route exact path='/tasks/:id' component={TaskPageComponent} />
                                         <Route exact path='/tasks/:tid/quality-control' component={QualityControlPage} />
                                         <Route exact path='/tasks/:tid/analytics' component={AnalyticsReportPage} />
+                                        <Route exact path='/tasks/:tid/annotation-stats' component={AnnotationStatsPage} />
                                         <Route exact path='/tasks/:tid/consensus' component={ConsensusManagementPage} />
                                         <Route exact path='/tasks/:id/jobs/create' component={CreateJobPage} />
                                         <Route exact path='/tasks/:id/guide' component={AnnotationGuidePage} />
