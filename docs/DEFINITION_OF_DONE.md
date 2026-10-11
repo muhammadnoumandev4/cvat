@@ -76,17 +76,65 @@ HTTP/1.1 403 Forbidden
 
 - [x] Grouping by shape type returns counts that sum to the plain total. → Every label's
       `by_type` sums to its `count`; total 3,541 both ways.
-- [ ] Chart updates live over WebSocket when a box is added or deleted in a job.
-- [ ] Page reconnects after the WebSocket drops (server restart) and shows the
-      connection state.
-- [ ] Decision record at the end of the Plan.
+- [x] Chart updates live over WebSocket when a box is added or deleted in a job. → With the
+      page open, adding 20 zebra boxes to job 5 through the annotations API changed it from
+      3,541 to 3,561 within 2 s, with no reload ([7](evidence/7-live-after-adding-20.jpg)).
+      In the socket test below, each add or delete arrived about 0.2–0.4 s after the edit.
+      The socket refuses exactly like the HTTP endpoint (4401 / 4403 / 4404), and rejects a
+      cross-site Origin at the handshake.
+
+```
+# live push test 2026-10-11T21:13:49Z: socket open on task 2, job 5 edited through the REST API
+02:13:52 delete test box -> 200
+02:13:56 add zebra box -> 200
+02:14:00 delete test box -> 200
++ 0.16s push: total=3542 zebra=32
++ 3.23s push: total=3541 zebra=31
++ 7.30s push: total=3542 zebra=32
++11.36s push: total=3541 zebra=31
+
+# refusals
+no login:
+closed: ConnectionClosedError 4401 
+outsider (no access):
+closed: ConnectionClosedError 4403 
+owner, cross-site Origin:
+closed: InvalidStatus None None
+owner, missing task:
+closed: ConnectionClosedError 4404
+```
+- [x] Page reconnects after the WebSocket drops (server restart) and shows the
+      connection state. → I stopped `cvat_server` with the page open. The badge showed
+      "Connection lost, reconnecting in 4s", backing off 1, 2, 4, 8, 16 then 30 s, and the
+      chart kept the last counts ([8](evidence/8-reconnecting.png)). While the page was
+      disconnected I deleted the 20 boxes in the database. After the server came back the
+      page reconnected on its own and showed "Live" with 3,541, the change it had missed
+      ([9](evidence/9-recovered.jpg)).
+- [x] Decision record at the end of the Plan. → `docs/PLAN.md`, Decision record.
 
 ## Hygiene
 
-- [ ] Commits are small and readable. Plan and this file are committed before any code.
-- [ ] No dead code, commented-out blocks or stray files.
-- [ ] Everything I did not finish is listed below.
+- [x] Commits are small and readable. Plan and this file are committed before any code.
+      → First commit `f21daee` holds only these two documents. Each fix found in testing
+      is its own commit, saying what broke and why.
+- [x] No dead code, commented-out blocks or stray files. → The change is `cvat/apps/test/`,
+      two lines in `cvat/settings/base.py`, three in `cvat/urls.py`, three in `cvat/asgi.py`,
+      the page folder, one route and one menu item in the UI, and `docs/`.
+- [x] Everything I did not finish is listed below.
 
 ## Not finished
 
-_(Filled in at the end.)_
+- **No automated tests.** Everything above was checked by hand against live data, with the
+  raw output kept. There are no Django tests for `counts.py` or the view, no tests for the
+  socket, and no UI tests. Those would come first with more time.
+- **Tracks, tags and skeletons are untested with real data.** COCO import creates only
+  polygons and masks. The code counts tracks, tags and top-level skeletons, but no
+  measurement here covers them.
+- **No covering index.** MO-2 met its target with almost no margin. The next step is
+  written in `docs/OBJECTIVES.md` but not done.
+- **Recovery can take up to 30 s** after a long outage, because of the backoff cap. There is
+  no "reconnect now" button, and the page does not listen for the browser's `online` event.
+- **Prebuilt images.** I ran the `cvat/server:dev` and `cvat/ui:dev` images with this
+  branch's `cvat/` package and UI bundle bind-mounted, through a local compose override kept
+  outside the repo. I did not rebuild the images from the Dockerfiles.
+- **Loom recording.** Not part of the repository. It is recorded and linked separately.

@@ -85,3 +85,47 @@ small.
   app. Traefik then sends `/api` to the UI container, which answers 200 with `index.html`.
   The page trusted any 2xx and read `labels.length` on a string. The page now checks the
   response shape. Lesson: "the request failed" does not always arrive as an HTTP error.
+- **WebSocket bug found in the browser only.** The first socket test used a Python client and
+  passed. In the browser every socket closed with 1006: the handshake offers gzip, Django's
+  GZip middleware compressed the replayed response, and decoding it failed. The handler now
+  drops `Accept-Encoding` from the replayed request.
+
+## How the time went
+
+From commit times on 12 Oct: plan at 00:50; endpoint, page and grouping by 01:07; then about
+an hour of testing against the imported data, which found the parts-versus-objects count,
+the 500, the ground truth and mixed-group cases, and the UI crash; WebSocket and reconnect
+from 02:09 to 02:19. Image pulls and the COCO download ran in the background before and
+during this. The order matched the plan. Testing took a larger share than planned, because
+every real run found something that reading the code had not.
+
+## Decision record
+
+**Taken: the socket polls one column and replays the HTTP endpoint in-process.**
+`cvat/apps/test/live.py` wraps the ASGI app in `cvat/asgi.py`. Each open socket checks
+`Task.updated_date` once a second. CVAT already bumps it on every annotation save
+(`_set_updated_date`, `cvat/apps/dataset_manager/task.py:527`). When it changes, the
+handler runs the normal HTTP request through Django with the socket's own cookies and
+sends the JSON. Login, OPA rules, ground truth handling and counting are therefore the
+same code for both, and a refusal maps straight onto a close code.
+
+**Rejected: Django Channels with Redis pub/sub, pushed from annotation-save signals.**
+That is the textbook design and would push in milliseconds with no polling.
+
+**What rejecting it cost:**
+- Up to 1 s of delay before a change shows (0.2–0.4 s measured).
+- One indexed `SELECT` per open socket per second, even when nothing changes. Fine for a
+  handful of viewers; it would not scale to thousands of open pages.
+- Any change to the task, not only annotations, triggers a recount.
+
+**What it bought:** no new dependency, no image rebuild, and no hooks in CVAT's annotation
+save path. That path uses `bulk_create`, which sends no `post_save` signals, so Channels
+would have meant changing code in `dataset_manager`. Channels would also have needed a
+second, separate auth path for sockets.
+
+**What I would reverse first:** the HTTP request on page load next to the socket. The
+socket's first message already carries the counts, so the page fetches them twice on
+load. I kept the HTTP call because it gives readable error messages and the Retry path
+for item 4. The cost of removing it would be rebuilding that error handling on top of
+close codes.
+
