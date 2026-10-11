@@ -4,7 +4,9 @@
 
 import './styles.scss';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, {
+    useCallback, useEffect, useRef, useState,
+} from 'react';
 import { useParams } from 'react-router';
 import { Row, Col } from 'antd/lib/grid';
 import Title from 'antd/lib/typography/Title';
@@ -40,6 +42,7 @@ const KIND_COLORS: Record<string, string> = {
     skeleton: '#2f54eb',
     track: '#faad14',
     tag: '#8c8c8c',
+    interval: '#9254de',
 };
 
 interface LabelCount {
@@ -123,13 +126,20 @@ function AnnotationStatsPage(): JSX.Element {
     const [fetching, setFetching] = useState(true);
     const [groupByType, setGroupByType] = useState(false);
 
+    // Only the newest request may update the page: switching the split or the task while an
+    // older request is slow must not let its late answer replace the current chart
+    const latestRequest = useRef(0);
     const load = useCallback(() => {
+        latestRequest.current += 1;
+        const request = latestRequest.current;
+        const isLatest = (): boolean => request === latestRequest.current;
+
         setFetching(true);
         setError(null);
         fetchAnnotationCounts(taskId, groupByType)
-            .then(setCounts)
-            .catch(setError)
-            .finally(() => setFetching(false));
+            .then((result) => isLatest() && setCounts(result))
+            .catch((reason) => isLatest() && setError(reason))
+            .finally(() => isLatest() && setFetching(false));
     }, [taskId, groupByType]);
 
     useEffect(load, [load]);
