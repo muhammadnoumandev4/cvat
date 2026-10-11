@@ -73,3 +73,11 @@ small.
 - **Filter backends.** CVAT's default filter backends assume a list view with
   `search_fields`, and they crashed this detail-only view (500). The view now sets
   `filter_backends = []`.
+- **Mixed-type groups.** A review found that CVAT lets users group shapes of different types
+  (`getSelectionGroupState` in `cvat-ui/src/utils/multi-selection.ts` has no type check).
+  The split view deduplicated groups per type, so a rectangle and a polygon in one group
+  counted once in the total but once under each type. Grouped objects are now taken one
+  per `(job, frame, group)` with `Min(type)` as their kind. Checked by adding a rectangle
+  to an existing grouped polygon: the plain total, the split total and the per-label sums
+  all stayed at 3,541. The plain count path, the one measured in MO-1 and MO-2, did not
+  change.

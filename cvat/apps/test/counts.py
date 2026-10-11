@@ -4,7 +4,7 @@
 
 from collections import Counter, defaultdict
 
-from django.db.models import CharField, Count, F, Q, Value
+from django.db.models import CharField, Count, F, Min, Q, Value
 from django.db.models.functions import Concat
 
 from cvat.apps.engine.models import (
@@ -26,7 +26,8 @@ _ANNOTATION_KINDS = (
 # One object can be stored as several rows sharing a group id, e.g. COCO import turns each
 # part of a multi-polygon segmentation into its own polygon. Group ids are unique only within
 # a job and frame, so (job, frame, group) identifies the object.
-_UNGROUPED_ROWS = Count("id", filter=Q(group__isnull=True) | Q(group=0))
+_UNGROUPED = Q(group__isnull=True) | Q(group=0)
+_UNGROUPED_ROWS = Count("id", filter=_UNGROUPED)
 _GROUPED_OBJECTS = Count(
     Concat("job_id", Value(":"), "frame", Value(":"), "group", output_field=CharField()),
     distinct=True,
@@ -61,17 +62,37 @@ def count_annotations_per_label(task: Task, *, group_by_type: bool = False) -> l
         if model is not LabeledImage:
             queryset = queryset.filter(parent__isnull=True)
 
-        if group_by_type:
-            rows = queryset.annotate(kind=kind).values("label_id", "kind")
-        else:
-            rows = queryset.values("label_id")
+        if not group_by_type:
+            rows = queryset.values("label_id").annotate(
+                ungrouped=_UNGROUPED_ROWS, grouped=_GROUPED_OBJECTS
+            )
+            for row in rows.order_by():
+                counts[row["label_id"]] += row["ungrouped"] + row["grouped"]
+            continue
 
-        rows = rows.annotate(ungrouped=_UNGROUPED_ROWS, grouped=_GROUPED_OBJECTS).order_by()
-        for row in rows:
-            count = row["ungrouped"] + row["grouped"]
-            counts[row["label_id"]] += count
-            if group_by_type:
-                counts_by_type[row["label_id"]][row["kind"]] += count
+        ungrouped = (
+            queryset.filter(_UNGROUPED)
+            .annotate(kind=kind)
+            .values("label_id", "kind")
+            .annotate(count=Count("id"))
+        )
+        for row in ungrouped.order_by():
+            counts[row["label_id"]] += row["count"]
+            counts_by_type[row["label_id"]][row["kind"]] += row["count"]
+
+        # CVAT lets users group shapes of different types, so a grouped object is counted
+        # once, under the alphabetically first type among its parts. This keeps the
+        # per-type split summing to the plain count.
+        grouped = (
+            queryset.filter(group__gt=0)
+            .values("label_id", "job_id", "frame", "group")
+            .annotate(kind=Min(kind))
+            .values_list("label_id", "kind")
+            .order_by()
+        )
+        for label_id, object_kind in grouped.iterator():
+            counts[label_id] += 1
+            counts_by_type[label_id][object_kind] += 1
 
     labels = []
     for label in task.get_labels().order_by("id"):
