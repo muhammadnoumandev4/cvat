@@ -59,8 +59,15 @@ async function fetchAnnotationCounts(taskId: number, groupByType: boolean): Prom
     const response = await core.server.request(
         `${core.config.backendAPI}/test/tasks/${taskId}/annotation-counts`,
         { method: 'GET', params: groupByType ? { group_by: 'type' } : {} },
-    ) as { data: AnnotationCounts };
-    return response.data;
+    ) as { data: unknown };
+
+    // When the API container is down, the proxy falls through to the UI and answers 200
+    // with index.html, so a successful status alone does not mean we got counts
+    const { data } = response;
+    if (typeof data !== 'object' || data === null || !Array.isArray((data as AnnotationCounts).labels)) {
+        throw new Error('The server returned an unexpected response. It may be unavailable.');
+    }
+    return data as AnnotationCounts;
 }
 
 function AnnotationCountsChart({ counts }: { counts: AnnotationCounts }): JSX.Element {
@@ -142,7 +149,7 @@ function AnnotationStatsPage(): JSX.Element {
                     <GoBackButton />
                     <Title level={4}>{`Annotations per label, task #${taskId}`}</Title>
                     <Space size='large'>
-                        {counts && counts.total > 0 && (
+                        {!error && counts && counts.total > 0 && (
                             <Text type='secondary'>
                                 {`${counts.total} annotations across ${counts.labels.length} labels`}
                             </Text>
