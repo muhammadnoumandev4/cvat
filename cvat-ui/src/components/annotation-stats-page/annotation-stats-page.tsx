@@ -14,6 +14,7 @@ import Empty from 'antd/lib/empty';
 import Result from 'antd/lib/result';
 import Switch from 'antd/lib/switch';
 import Space from 'antd/lib/space';
+import Badge from 'antd/lib/badge';
 import {
     Chart as ChartJS, BarElement, CategoryScale, LinearScale, Legend, Tooltip,
 } from 'chart.js';
@@ -22,6 +23,7 @@ import { Bar } from 'react-chartjs-2';
 import { getCore } from 'cvat-core-wrapper';
 import CVATLoadingSpinner from 'components/common/loading-spinner';
 import GoBackButton from 'components/common/go-back-button';
+import { LiveStatus, useLiveAnnotationCounts } from './use-live-annotation-counts';
 
 ChartJS.register(BarElement, CategoryScale, LinearScale, Legend, Tooltip);
 
@@ -55,19 +57,34 @@ interface AnnotationCounts {
     labels: LabelCount[];
 }
 
+// When the API container is down, the proxy falls through to the UI and answers 200
+// with index.html, so a successful status alone does not mean we got counts
+function parseAnnotationCounts(data: unknown): AnnotationCounts {
+    if (typeof data !== 'object' || data === null || !Array.isArray((data as AnnotationCounts).labels)) {
+        throw new Error('The server returned an unexpected response. It may be unavailable.');
+    }
+    return data as AnnotationCounts;
+}
+
 async function fetchAnnotationCounts(taskId: number, groupByType: boolean): Promise<AnnotationCounts> {
     const response = await core.server.request(
         `${core.config.backendAPI}/test/tasks/${taskId}/annotation-counts`,
         { method: 'GET', params: groupByType ? { group_by: 'type' } : {} },
     ) as { data: unknown };
+    return parseAnnotationCounts(response.data);
+}
 
-    // When the API container is down, the proxy falls through to the UI and answers 200
-    // with index.html, so a successful status alone does not mean we got counts
-    const { data } = response;
-    if (typeof data !== 'object' || data === null || !Array.isArray((data as AnnotationCounts).labels)) {
-        throw new Error('The server returned an unexpected response. It may be unavailable.');
-    }
-    return data as AnnotationCounts;
+const LIVE_BADGES: Record<LiveStatus['state'], { status: 'success' | 'processing' | 'warning' | 'default'; text: string }> = {
+    live: { status: 'success', text: 'Live' },
+    connecting: { status: 'processing', text: 'Connecting to live updates' },
+    reconnecting: { status: 'warning', text: 'Connection lost, reconnecting' },
+    refused: { status: 'default', text: 'Live updates unavailable' },
+};
+
+function LiveBadge({ status }: { status: LiveStatus }): JSX.Element {
+    const { status: badgeStatus, text } = LIVE_BADGES[status.state];
+    const retry = status.retryInSeconds === null ? '' : ` in ${status.retryInSeconds}s`;
+    return <Badge className='cvat-annotation-stats-live' status={badgeStatus} text={`${text}${retry}`} />;
 }
 
 function AnnotationCountsChart({ counts }: { counts: AnnotationCounts }): JSX.Element {
@@ -117,6 +134,16 @@ function AnnotationStatsPage(): JSX.Element {
 
     useEffect(load, [load]);
 
+    const onLiveCounts = useCallback((data: unknown) => {
+        try {
+            setCounts(parseAnnotationCounts(data));
+            setError(null);
+        } catch {
+            // A malformed push is ignored; the next one or a reload brings correct counts
+        }
+    }, []);
+    const liveStatus = useLiveAnnotationCounts(taskId, groupByType, onLiveCounts);
+
     let content: JSX.Element;
     if (fetching && !counts) {
         content = <CVATLoadingSpinner />;
@@ -158,6 +185,7 @@ function AnnotationStatsPage(): JSX.Element {
                             <Switch checked={groupByType} onChange={setGroupByType} />
                             <Text>Split by shape type</Text>
                         </Space>
+                        <LiveBadge status={liveStatus} />
                     </Space>
                     {content}
                 </Col>
