@@ -63,6 +63,8 @@ async def _fetch_counts(django_app, scope, task_id: int) -> tuple[int, str]:
         "scheme": {"wss": "https"}.get(scope.get("scheme"), "http"),
         "path": f"/api/test/tasks/{task_id}/annotation-counts",
         "raw_path": f"/api/test/tasks/{task_id}/annotation-counts".encode(),
+        # Browsers offer gzip in the handshake; the body is sent as a text frame, not HTTP
+        "headers": [(k, v) for k, v in scope["headers"] if k != b"accept-encoding"],
     }
     status = 500
     body = []
