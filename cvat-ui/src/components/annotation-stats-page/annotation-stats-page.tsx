@@ -149,7 +149,7 @@ function AnnotationStatsPage(): JSX.Element {
     }, [load, reconnectNow]);
 
     let content: JSX.Element;
-    if (fetching && !counts) {
+    if (fetching) {
         content = <CVATLoadingSpinner />;
     } else if (error) {
         content = (
