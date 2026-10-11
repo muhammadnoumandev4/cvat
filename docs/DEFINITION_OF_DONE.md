@@ -117,9 +117,10 @@ closed: ConnectionClosedError 4404
 - [x] Commits are small and readable. Plan and this file are committed before any code.
       → First commit `f21daee` holds only these two documents. Each fix found in testing
       is its own commit, saying what broke and why.
-- [x] No dead code, commented-out blocks or stray files. → The change is `cvat/apps/test/`,
-      two lines in `cvat/settings/base.py`, three in `cvat/urls.py`, three in `cvat/asgi.py`,
-      the page folder, one route and one menu item in the UI, and `docs/`.
+- [x] No dead code, commented-out blocks or stray files. → 673 added lines, 0 removed, outside
+      `docs/`: `cvat/apps/test/`; one line in `cvat/settings/base.py`; one `include` in
+      `cvat/urls.py`; two lines in `cvat/asgi.py`; the page folder, one route and one menu
+      item in the UI.
 - [x] Everything I did not finish is listed below.
 
 ## Not finished
