@@ -56,9 +56,7 @@ def count_annotations_per_label(task: Task, *, group_by_type: bool = False) -> l
     counts = Counter()
     counts_by_type = defaultdict(Counter)
     for model, kind in _ANNOTATION_KINDS:
-        queryset = model.objects.filter(
-            job__segment__task_id=task.id, job__type__in=job_types
-        )
+        queryset = model.objects.filter(job__segment__task_id=task.id, job__type__in=job_types)
         if model is not LabeledImage:
             queryset = queryset.filter(parent__isnull=True)
 
@@ -96,7 +94,12 @@ def count_annotations_per_label(task: Task, *, group_by_type: bool = False) -> l
 
     labels = []
     for label in task.get_labels().order_by("id"):
-        entry = {"id": label.id, "name": label.name, "color": label.color, "count": counts[label.id]}
+        entry = {
+            "id": label.id,
+            "name": label.name,
+            "color": label.color,
+            "count": counts[label.id],
+        }
         if group_by_type:
             entry["by_type"] = dict(counts_by_type[label.id])
         labels.append(entry)

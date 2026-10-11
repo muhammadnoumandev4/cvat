@@ -33,9 +33,7 @@ def route_websockets(django_app):
         if scope["type"] == "websocket":
             match = _SOCKET_PATH.match(scope["path"])
             if match:
-                return await _serve_counts(
-                    django_app, scope, receive, send, int(match["task_id"])
-                )
+                return await _serve_counts(django_app, scope, receive, send, int(match["task_id"]))
 
             await receive()  # websocket.connect
             return await send({"type": "websocket.close"})
