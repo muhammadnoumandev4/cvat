@@ -112,6 +112,52 @@ closed: ConnectionClosedError 4404
       ([9](evidence/9-recovered.jpg)).
 - [x] Decision record at the end of the Plan. → `docs/PLAN.md`, Decision record.
 
+## Added after the first submission draft
+
+- [x] Automated tests. → `cvat/apps/test/tests/test_annotation_counts.py`, 16 tests, all
+      passing. They run with CVAT's own test settings, the same way CI does:
+      `DJANGO_SETTINGS_MODULE=cvat.settings.testing python manage.py test cvat.apps.test`.
+      My run used the `cvat/server:dev` image with `cvat/requirements/testing.txt`
+      installed, inside the OPA container's network so `localhost:8181` reaches OPA (CI uses
+      host networking for that).
+
+```
+test_anonymous_is_refused [AnnotationCountsApiTest] ... ok
+test_assignee_gets_access [AnnotationCountsApiTest] ... ok
+test_group_by_type [AnnotationCountsApiTest] ... ok
+test_missing_task [AnnotationCountsApiTest] ... ok
+test_owner_gets_counts [AnnotationCountsApiTest] ... ok
+test_unknown_group_by_is_rejected [AnnotationCountsApiTest] ... ok
+test_user_without_access_is_refused [AnnotationCountsApiTest] ... ok
+test_counts_shapes_tracks_and_tags_per_label [CountAnnotationsTest] ... ok
+test_ground_truth_counted_only_in_gt_pool_mode [CountAnnotationsTest] ... ok
+test_grouped_parts_are_one_object_per_frame [CountAnnotationsTest] ... ok
+test_labels_without_annotations_are_listed_with_zero [CountAnnotationsTest] ... ok
+test_skeleton_is_one_object [CountAnnotationsTest] ... ok
+test_type_split_sums_to_count_for_mixed_type_groups [CountAnnotationsTest] ... ok
+test_cross_site_origin_is_rejected_before_accept [LiveAnnotationCountsTest] ... OK
+test_pushes_counts_on_connect_and_after_change [LiveAnnotationCountsTest] ... ok
+test_refusal_closes_with_http_status [LiveAnnotationCountsTest] ... ok
+Ran 16 tests in 1.873s
+OK
+```
+
+- [x] Tracks, tags and skeletons checked on live data. → Task 4 (10 COCO images), annotated
+      through the job annotations API, the same call the editor makes. The database holds 9
+      rows; the API counts 5 objects. A track with 3 keyframes is one object, and a skeleton
+      with 2 points is one object ([10](evidence/10-tracks-tags-skeleton.jpg)). This check
+      also found that the axis showed fractional ticks for small counts; fixed.
+
+```
+# task 4 (10 COCO images): 1 car box, 1 car track with 3 keyframes, 2 weather tags, 1 body skeleton with 2 points
+PATCH job 7 annotations (create) -> 200
+rows in DB: shapes=4 (skeleton + 2 elements + box), tracks=1, tracked shapes=3, tags=2
+API total: 5
+  car      count=2 by_type={'rectangle': 1, 'track': 1}
+  weather  count=2 by_type={'tag': 2}
+  body     count=1 by_type={'skeleton': 1}
+```
+
 ## Hygiene
 
 - [x] Commits are small and readable. Plan and this file are committed before any code.
@@ -125,17 +171,16 @@ closed: ConnectionClosedError 4404
 
 ## Not finished
 
-- **No automated tests.** Everything above was checked by hand against live data, with the
-  raw output kept. There are no Django tests for `counts.py` or the view, no tests for the
-  socket, and no UI tests. Those would come first with more time.
-- **Tracks, tags and skeletons are untested with real data.** COCO import creates only
-  polygons and masks. The code counts tracks, tags and top-level skeletons, but no
-  measurement here covers them.
+- **No UI tests.** The backend and the socket have automated tests (above). The page was
+  checked by hand with screenshots; there are no Jest or Cypress tests for it.
 - **No covering index.** MO-2 met its target with almost no margin. The next step is
   written in `docs/OBJECTIVES.md` but not done.
 - **Recovery can take up to 30 s** after a long outage, because of the backoff cap. There is
   no "reconnect now" button, and the page does not listen for the browser's `online` event.
-- **Prebuilt images.** I ran the `cvat/server:dev` and `cvat/ui:dev` images with this
-  branch's `cvat/` package and UI bundle bind-mounted, through a local compose override kept
-  outside the repo. I did not rebuild the images from the Dockerfiles.
+- **Prebuilt images, not rebuilt.** I ran the `cvat/server:dev` and `cvat/ui:dev` images
+  with this branch's `cvat/` package and UI bundle bind-mounted, through a local compose
+  override kept outside the repo. I chose not to rebuild them. The UI image runs the same
+  `yarn run build:cvat-ui` I ran, and the server image copies the same `cvat/` folder I
+  mounted. A rebuild would cost about an hour of downloads and compiling and would test
+  CVAT's Dockerfiles rather than this change.
 - **Loom recording.** Not part of the repository. It is recorded and linked separately.
