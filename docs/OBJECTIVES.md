@@ -55,6 +55,18 @@ run 4: http=200 time_total=0.029520s
 run 5: http=200 time_total=0.028834s
 ```
 
+**Recheck.** After intervals were added as a fourth counted table, five more runs gave a
+median of 32.8 ms (30.7–36.7 ms), so the target is still met with one extra query.
+
+```
+# MO-1 recheck after the counts.py refactor (intervals added) 2026-10-11T22:52:35Z, token auth
+run 1: http=200 time_total=0.036701s
+run 2: http=200 time_total=0.032793s
+run 3: http=200 time_total=0.034918s
+run 4: http=200 time_total=0.032183s
+run 5: http=200 time_total=0.030693s
+```
+
 ## MO-2 — the same endpoint at 100× the annotations
 
 | Field | Entry |

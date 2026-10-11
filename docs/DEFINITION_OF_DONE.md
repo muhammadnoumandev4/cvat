@@ -95,9 +95,9 @@ HTTP/1.1 403 Forbidden
 
 # refusals
 no login:
-closed: ConnectionClosedError 4401 
+closed: ConnectionClosedError 4401
 outsider (no access):
-closed: ConnectionClosedError 4403 
+closed: ConnectionClosedError 4403
 owner, cross-site Origin:
 closed: InvalidStatus None None
 owner, missing task:
@@ -114,8 +114,9 @@ closed: ConnectionClosedError 4404
 
 ## Added after the first submission draft
 
-- [x] Automated tests. → `cvat/apps/test/tests/test_annotation_counts.py`, 16 tests, all
-      passing. They run with CVAT's own test settings, the same way CI does:
+- [x] Automated tests. → `cvat/apps/test/tests/test_annotation_counts.py`, 19 tests, all
+      passing; the whole `manage.py test` command takes 13 s and exits 0. They run with
+      CVAT's own test settings, as CI does:
       `DJANGO_SETTINGS_MODULE=cvat.settings.testing python manage.py test cvat.apps.test`.
       My run used the `cvat/server:dev` image with `cvat/requirements/testing.txt`
       installed, inside the OPA container's network so `localhost:8181` reaches OPA (CI uses
@@ -132,13 +133,16 @@ test_user_without_access_is_refused [AnnotationCountsApiTest] ... ok
 test_counts_shapes_tracks_and_tags_per_label [CountAnnotationsTest] ... ok
 test_ground_truth_counted_only_in_gt_pool_mode [CountAnnotationsTest] ... ok
 test_grouped_parts_are_one_object_per_frame [CountAnnotationsTest] ... ok
+test_intervals_are_counted_and_grouped_by_start [CountAnnotationsTest] ... ok
 test_labels_without_annotations_are_listed_with_zero [CountAnnotationsTest] ... ok
 test_skeleton_is_one_object [CountAnnotationsTest] ... ok
 test_type_split_sums_to_count_for_mixed_type_groups [CountAnnotationsTest] ... ok
 test_cross_site_origin_is_rejected_before_accept [LiveAnnotationCountsTest] ... OK
+test_origin_with_other_scheme_is_rejected [LiveAnnotationCountsTest] ... ok
 test_pushes_counts_on_connect_and_after_change [LiveAnnotationCountsTest] ... ok
 test_refusal_closes_with_http_status [LiveAnnotationCountsTest] ... ok
-Ran 16 tests in 1.873s
+test_secure_origin_is_accepted_on_secure_socket [LiveAnnotationCountsTest] ... ok
+Ran 19 tests in 2.100s
 OK
 ```
 
@@ -167,15 +171,31 @@ API total: 5
       server outage has now shown up three ways: HTML with a 200, a 502, and a 504. All
       three end in the error state.
 
+- [x] Review fixes rechecked. → Interval annotations are now counted. The WebSocket origin
+      must match scheme and host as Django computes them: live, an `https` origin on this
+      `http` server and a foreign host are both refused, and same-origin connects. Late
+      answers from superseded requests are ignored: toggling the split three times quickly
+      leaves the chart matching the switch. MO-1 was re-measured after the `counts.py`
+      change and is still met:
+
+```
+# MO-1 recheck after the counts.py refactor (intervals added) 2026-10-11T22:52:35Z, token auth
+run 1: http=200 time_total=0.036701s
+run 2: http=200 time_total=0.032793s
+run 3: http=200 time_total=0.034918s
+run 4: http=200 time_total=0.032183s
+run 5: http=200 time_total=0.030693s
+```
+
 ## Hygiene
 
 - [x] Commits are small and readable. Plan and this file are committed before any code.
       → First commit `f21daee` holds only these two documents. Each fix found in testing
       is its own commit, saying what broke and why.
-- [x] No dead code, commented-out blocks or stray files. → 674 added lines of feature code and
-      244 of tests, 0 removed, outside `docs/`: `cvat/apps/test/`; one line in `cvat/settings/base.py`; one `include` in
-      `cvat/urls.py`; two lines in `cvat/asgi.py`; the page folder, one route and one menu
-      item in the UI.
+- [x] No dead code, commented-out blocks or stray files. → Outside `docs/`: 772 added lines
+      of feature code and 272 of tests, 0 removed. The feature is `cvat/apps/test/`, one
+      line in `cvat/settings/base.py`, one `include` in `cvat/urls.py`, two lines in
+      `cvat/asgi.py`, and in the UI the page folder, one route and one menu item.
 - [x] Everything I did not finish is listed below.
 
 ## Not finished
